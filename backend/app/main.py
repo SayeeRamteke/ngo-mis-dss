@@ -7,6 +7,7 @@ from .core.database import get_db, engine, Base
 from .models import models
 from .schemas import schemas
 from .engine import dss_engine, simulator
+from .api.v1 import routes_resources, routes_finance, routes_volunteers, routes_dss, routes_reports, routes_upload, routes_programs, routes_beneficiaries
 
 # We already ran migrations, but this ensures tables exist if using sqlite directly
 # models.Base.metadata.create_all(bind=engine)
@@ -24,21 +25,6 @@ app.add_middleware(
 @app.get("/")
 def read_root():
     return {"message": "Welcome to NGO MIS + DSS API"}
-
-# --- Beneficiaries ---
-@app.get("/api/v1/beneficiaries", response_model=List[schemas.BeneficiaryResponse])
-def get_beneficiaries(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(models.Beneficiary).offset(skip).limit(limit).all()
-
-@app.post("/api/v1/beneficiaries", response_model=schemas.BeneficiaryResponse)
-def create_beneficiary(beneficiary: schemas.BeneficiaryCreate, db: Session = Depends(get_db)):
-    db_beneficiary = models.Beneficiary(**beneficiary.model_dump(), created_by=1) # Mock auth user 1
-    db.add(db_beneficiary)
-    db.commit()
-    db.refresh(db_beneficiary)
-    # Recalculate priority
-    dss_engine.calculate_priority_score(db, db_beneficiary)
-    return db_beneficiary
 
 # --- DSS ---
 @app.get("/api/v1/dss/recommendations", response_model=List[schemas.DSSRecommendationResponse])
@@ -59,3 +45,13 @@ def run_simulation(params: dict, db: Session = Depends(get_db)):
         programs=prog_data
     )
     return result
+
+# --- Include New API Routers ---
+app.include_router(routes_beneficiaries.router)
+app.include_router(routes_resources.router)
+app.include_router(routes_finance.router)
+app.include_router(routes_volunteers.router)
+app.include_router(routes_dss.router)
+app.include_router(routes_reports.router)
+app.include_router(routes_upload.router)
+app.include_router(routes_programs.router)

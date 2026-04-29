@@ -69,13 +69,39 @@ class Beneficiary(Base):
     __tablename__ = "beneficiaries"
     beneficiary_id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String, index=True)
-    age = Column(Integer)
-    gender = Column(String)
+    age = Column(Integer, nullable=True) # Keeping for legacy, prefer date_of_birth
+    gender = Column(String, nullable=True)
     location_id = Column(Integer, ForeignKey("regions.region_id"))
     household_size = Column(Integer, default=1)
     monthly_income = Column(Float, default=0.0)
     occupation = Column(String, nullable=True)
     vulnerability_index = Column(Float, default=0.0)
+    need_type = Column(String, default="general")
+    priority_level = Column(String, default="medium")
+    contact_info = Column(String, nullable=True)
+    is_organization = Column(Boolean, default=False) # Legacy
+    
+    # --- New DSS & Type Fields ---
+    beneficiary_type = Column(String, default="individual") # "individual" or "organization"
+    priority_score = Column(Float, default=0.0)
+    priority_last_calculated_at = Column(DateTime, nullable=True)
+    last_aid_date = Column(DateTime, nullable=True)
+    
+    # Individual Fields
+    date_of_birth = Column(Date, nullable=True)
+    earning_members = Column(Integer, default=0)
+    health_status = Column(String, default="healthy")
+    vulnerability_type = Column(String, nullable=True)
+    
+    # Organization Fields
+    organization_type = Column(String, nullable=True)
+    registration_number = Column(String, nullable=True)
+    capacity = Column(Integer, nullable=True)
+    current_occupancy = Column(Integer, nullable=True)
+    population_served = Column(Integer, nullable=True)
+    funding_level = Column(String, nullable=True)
+    service_type = Column(String, nullable=True)
+    
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -180,3 +206,91 @@ class WhatIfSimulation(Base):
     output_results_json = Column(JSON)
     scenario_name = Column(String)
     notes = Column(Text, nullable=True)
+
+class VolunteerProfile(Base):
+    __tablename__ = "volunteer_profiles"
+    profile_id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.user_id"))
+    phone = Column(String, nullable=True)
+    availability = Column(String, default="available") # available, assigned, inactive
+    join_date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+class VolunteerSkill(Base):
+    __tablename__ = "volunteer_skills"
+    skill_id = Column(Integer, primary_key=True, index=True)
+    volunteer_id = Column(Integer, ForeignKey("volunteer_profiles.profile_id"))
+    skill_name = Column(String)
+    proficiency = Column(String) # basic, intermediate, expert
+
+class ProgramVolunteer(Base):
+    __tablename__ = "program_volunteers"
+    assignment_id = Column(Integer, primary_key=True, index=True)
+    program_id = Column(Integer, ForeignKey("programs.program_id"))
+    volunteer_id = Column(Integer, ForeignKey("volunteer_profiles.profile_id"))
+    role = Column(String, nullable=True)
+    start_date = Column(DateTime)
+    end_date = Column(DateTime)
+    status = Column(String, default="active")
+
+class Donation(Base):
+    __tablename__ = "donations"
+    donation_id = Column(Integer, primary_key=True, index=True)
+    donor_name = Column(String)
+    amount = Column(Float)
+    date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    donation_type = Column(String) # cash, in_kind
+    program_id = Column(Integer, ForeignKey("programs.program_id"), nullable=True)
+    notes = Column(Text, nullable=True)
+
+class Expense(Base):
+    __tablename__ = "expenses"
+    expense_id = Column(Integer, primary_key=True, index=True)
+    program_id = Column(Integer, ForeignKey("programs.program_id"), nullable=True)
+    region_id = Column(Integer, ForeignKey("regions.region_id"), nullable=True)
+    category = Column(String)
+    amount = Column(Float)
+    date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    description = Column(Text, nullable=True)
+    approved_by = Column(Integer, ForeignKey("users.user_id"), nullable=True)
+
+class ResourceTransaction(Base):
+    __tablename__ = "resource_transactions"
+    transaction_id = Column(Integer, primary_key=True, index=True)
+    resource_id = Column(Integer, ForeignKey("resources.resource_id"))
+    from_region_id = Column(Integer, ForeignKey("regions.region_id"), nullable=True)
+    to_region_id = Column(Integer, ForeignKey("regions.region_id"), nullable=True)
+    quantity = Column(Float)
+    transaction_type = Column(String) # inflow, outflow, transfer
+    date = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    program_id = Column(Integer, ForeignKey("programs.program_id"), nullable=True)
+    notes = Column(Text, nullable=True)
+
+class BeneficiaryAid(Base):
+    __tablename__ = "beneficiary_aid"
+    aid_id = Column(Integer, primary_key=True, index=True)
+    beneficiary_id = Column(Integer, ForeignKey("beneficiaries.beneficiary_id"))
+    program_id = Column(Integer, ForeignKey("programs.program_id"))
+    resource_id = Column(Integer, ForeignKey("resources.resource_id"))
+    quantity_received = Column(Float)
+    date_received = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+class Alert(Base):
+    __tablename__ = "alerts"
+    alert_id = Column(Integer, primary_key=True, index=True)
+    alert_type = Column(String)
+    message = Column(String)
+    region_id = Column(Integer, ForeignKey("regions.region_id"), nullable=True)
+    program_id = Column(Integer, ForeignKey("programs.program_id"), nullable=True)
+    status = Column(String, default="unread")
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+class ForecastData(Base):
+    __tablename__ = "forecast_data"
+    forecast_id = Column(Integer, primary_key=True, index=True)
+    resource_id = Column(Integer, ForeignKey("resources.resource_id"))
+    region_id = Column(Integer, ForeignKey("regions.region_id"))
+    month = Column(String)
+    predicted = Column(Float)
+    confidence = Column(String)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
