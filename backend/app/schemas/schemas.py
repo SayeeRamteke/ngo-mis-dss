@@ -8,6 +8,8 @@ class ResourceCreateNew(BaseModel):
     resource_type: str
     unit_of_measure: str
     initial_quantity: float
+    minimum_threshold: float = 0.0
+    maximum_threshold: float = 0.0
     region_id: int
 
 class VolunteerCreateNew(BaseModel):
@@ -200,6 +202,13 @@ class ResourceTransactionBase(BaseModel):
     program_id: Optional[int] = None
     notes: Optional[str] = None
 
+class ResourceTransferRequest(BaseModel):
+    resource_id: int
+    from_region_id: int
+    to_region_id: int
+    quantity: float
+    notes: Optional[str] = None
+
 class ResourceTransactionCreate(ResourceTransactionBase):
     pass
 
@@ -209,7 +218,7 @@ class ResourceTransactionResponse(ResourceTransactionBase):
     model_config = ConfigDict(from_attributes=True)
 
 class BeneficiaryAidBase(BaseModel):
-    beneficiary_id: int
+    beneficiary_id: Optional[int] = None
     program_id: Optional[int] = None
     resource_id: int
     quantity_received: float

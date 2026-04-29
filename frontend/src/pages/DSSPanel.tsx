@@ -1,11 +1,15 @@
-import React, { useState } from 'react'
-import { BrainCircuit, Play, Save, Activity, Loader2, AlertTriangle, Package } from 'lucide-react'
+import { useState } from 'react'
+import { BrainCircuit, Play, Save, Activity, Loader2, AlertTriangle, TrendingUp, AlertOctagon, Cpu, Info } from 'lucide-react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import axios from 'axios'
 
 export default function DSSPanel() {
   const [budgetChange, setBudgetChange] = useState(0)
   const [demandMultiplier, setDemandMultiplier] = useState(1.0)
   const [regionId, setRegionId] = useState(1)
+  const [activeVolunteers, setActiveVolunteers] = useState(50)
+  const [procurementEfficiency, setProcurementEfficiency] = useState(0.8)
+  const [supplyDelayDays, setSupplyDelayDays] = useState(3)
   const [hasRun, setHasRun] = useState(false)
   const [loading, setLoading] = useState(false)
   const [simResult, setSimResult] = useState<any>(null)
@@ -17,9 +21,12 @@ export default function DSSPanel() {
     setHasRun(true)
     try {
       const response = await axios.post('http://localhost:8000/api/v1/dss/simulate', {
-        regionId: 1, // default mock region for now
+        regionId: regionId,
         demandMultiplier: demandMultiplier,
-        budgetCutPercent: budgetChange < 0 ? Math.abs(budgetChange) : 0 // Handle budget cuts specifically
+        budgetChangePercent: budgetChange,
+        activeVolunteers: activeVolunteers,
+        procurementEfficiency: procurementEfficiency,
+        supplyDelayDays: supplyDelayDays
       })
       setSimResult(response.data)
     } catch (err) {
@@ -85,12 +92,54 @@ export default function DSSPanel() {
               <select 
                 value={regionId}
                 onChange={(e) => setRegionId(parseInt(e.target.value))}
-                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 cursor-pointer shadow-sm"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 cursor-pointer shadow-sm mb-6"
               >
                 <option value={1}>Mumbai North (Region 1)</option>
                 <option value={2}>Pune Rural (Region 2)</option>
                 <option value={3}>Nagpur Central (Region 3)</option>
               </select>
+
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Available Volunteers</label>
+              <input 
+                type="number" 
+                min="0" 
+                max="500" 
+                value={activeVolunteers} 
+                onChange={(e) => setActiveVolunteers(parseInt(e.target.value))}
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 shadow-sm mb-6"
+              />
+
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Procurement Efficiency (0.1 - 1.0)</label>
+              <input 
+                type="range" 
+                min="0.1" 
+                max="1.0" 
+                step="0.1"
+                value={procurementEfficiency} 
+                onChange={(e) => setProcurementEfficiency(parseFloat(e.target.value))}
+                className="w-full accent-green-600 cursor-pointer"
+              />
+              <div className="mt-2 flex justify-between text-sm font-medium text-slate-500 mb-6">
+                <span>0.1 (Poor)</span>
+                <span className="px-2 py-1 rounded-md bg-green-100 text-green-700 font-bold">{procurementEfficiency}</span>
+                <span>1.0 (Perfect)</span>
+              </div>
+
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Supply Delay (Days)</label>
+              <input 
+                type="range" 
+                min="0" 
+                max="14" 
+                step="1"
+                value={supplyDelayDays} 
+                onChange={(e) => setSupplyDelayDays(parseInt(e.target.value))}
+                className="w-full accent-amber-600 cursor-pointer"
+              />
+              <div className="mt-2 flex justify-between text-sm font-medium text-slate-500">
+                <span>0 (Instant)</span>
+                <span className="px-2 py-1 rounded-md bg-amber-100 text-amber-700 font-bold">{supplyDelayDays} Days</span>
+                <span>14 (Slow)</span>
+              </div>
             </div>
           </div>
 
@@ -134,55 +183,59 @@ export default function DSSPanel() {
                   <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">Simulation Results</h2>
                   <p className="text-slate-500 mt-1 font-medium">Impact analysis for Region 1</p>
                 </div>
-                <button className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 hover:shadow-sm font-semibold transition-all">
-                  <Save size={18} className="text-blue-500" /> Save Result
-                </button>
+                <div className="flex gap-2">
+                  <button onClick={() => alert("Display Logic: The engine runs a 30-day time-series loop. \n\n1. It tracks demand compounding daily. \n2. Procurement decisions are delayed by the Supply Delay. \n3. Volunteer count acts as a bottleneck on distribution efficiency. \n4. The system detects the root cause based on which constraint failed first (e.g. Budget vs Logistics).")} className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl hover:bg-blue-100 transition-all font-semibold text-sm">
+                    <Info size={18} /> How it works
+                  </button>
+                  <button className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 hover:shadow-sm font-semibold transition-all text-sm">
+                    <Save size={18} className="text-blue-500" /> Save Result
+                  </button>
+                </div>
               </div>
 
-              <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2"><Package size={20} className="text-indigo-500"/> Resource Impact</h3>
-              <div className="grid grid-cols-2 gap-6 mb-8">
-                {simResult.resourceSimulation.length > 0 ? simResult.resourceSimulation.map((r: any, i: number) => (
-                    <div key={i} className={`p-6 border rounded-2xl shadow-sm bg-white/50 backdrop-blur-sm ${r.projected_shortage > 0 ? 'border-red-200' : 'border-green-200'}`}>
-                      <div className="text-slate-800 text-sm font-bold uppercase tracking-wider mb-2">{r.resource}</div>
-                      <div className={`text-4xl font-extrabold mb-2 ${r.projected_shortage > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        {r.projected_shortage > 0 ? `-${r.projected_shortage}` : 'OK'}
-                      </div>
-                      <div className="flex justify-between text-xs font-medium text-slate-500 bg-slate-50 rounded-lg p-2 mt-3">
-                         <span>Stock: {r.current_stock}</span>
-                         <span>Demand: {r.simulated_demand}</span>
-                      </div>
+              {/* DIAGNOSTIC INSIGHTS */}
+              <div className="grid grid-cols-2 gap-4 mb-8">
+                <div className="bg-white/60 p-4 rounded-xl border shadow-sm">
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">System Status</div>
+                  <div className="flex items-center gap-2">
+                    <Activity size={18} className={simResult.programStatus === 'stable' ? 'text-green-500' : 'text-amber-500'}/>
+                    <span className="font-bold text-lg text-slate-800 capitalize">{simResult.programStatus}</span>
+                  </div>
+                </div>
+                <div className="bg-white/60 p-4 rounded-xl border shadow-sm">
+                  <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Shortage Trend</div>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={18} className={simResult.shortageTrend === 'increasing' ? 'text-red-500' : 'text-blue-500'}/>
+                    <span className="font-bold text-lg text-slate-800 capitalize">{simResult.shortageTrend}</span>
+                  </div>
+                </div>
+                {simResult.rootCause && (
+                  <div className="bg-red-50/50 p-4 rounded-xl border border-red-100 shadow-sm col-span-2 flex items-start gap-3">
+                    <AlertOctagon className="text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="text-sm font-bold text-red-800 mb-1">Root Cause: {simResult.rootCause}</div>
+                      <div className="text-sm text-red-600 font-medium">{simResult.recommendation}</div>
                     </div>
-                )) : <p className="text-slate-500 italic">No resource data available for this region.</p>}
+                  </div>
+                )}
               </div>
 
-              <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2"><Activity size={20} className="text-blue-500"/> Budget Impact</h3>
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50/80 text-slate-600 border-b border-slate-200">
-                    <tr>
-                      <th className="px-6 py-4 font-semibold">Program</th>
-                      <th className="px-6 py-4 font-semibold">Original Budget</th>
-                      <th className="px-6 py-4 font-semibold">Simulated Cut</th>
-                      <th className="px-6 py-4 font-semibold">Deficit Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {simResult.budgetImpact.length > 0 ? simResult.budgetImpact.map((p: any, i: number) => (
-                      <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-slate-800">{p.program}</td>
-                        <td className="px-6 py-4 font-medium text-slate-600">₹{p.original.toLocaleString()}</td>
-                        <td className="px-6 py-4 font-medium text-slate-600">₹{p.after_cut.toLocaleString()}</td>
-                        <td className="px-6 py-4">
-                          {p.deficit === 'Yes' ? (
-                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold shadow-sm border border-red-200">Deficit Projected</span>
-                          ) : (
-                            <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold shadow-sm border border-green-200">Sustainable</span>
-                          )}
-                        </td>
-                      </tr>
-                    )) : <tr><td colSpan={4} className="px-6 py-4 text-center text-slate-500 italic">No programs found for this region.</td></tr>}
-                  </tbody>
-                </table>
+              {/* TIMELINE CHART */}
+              <h3 className="font-bold text-lg text-slate-800 mb-4 flex items-center gap-2"><Cpu size={20} className="text-indigo-500"/> System Dynamics (30-Day Projection)</h3>
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex-1 min-h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={simResult.timelineData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="day" label={{ value: 'Day', position: 'insideBottomRight', offset: -5 }} />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <Legend />
+                    <Line yAxisId="left" type="monotone" dataKey="demand" stroke="#8b5cf6" strokeWidth={3} dot={false} name="Total Demand" />
+                    <Line yAxisId="left" type="stepAfter" dataKey="stock" stroke="#10b981" strokeWidth={3} dot={false} name="Available Stock" />
+                    <Line yAxisId="right" type="monotone" dataKey="shortage" stroke="#ef4444" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Shortage" />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             </div>
           ) : null}

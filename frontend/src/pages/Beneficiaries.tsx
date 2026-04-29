@@ -159,12 +159,15 @@ export default function Beneficiaries() {
 
   // Format data for charts
   let pieData: any[] = []
+  let globalHigh = 0, globalMed = 0, globalLow = 0;
   distributionData.forEach(d => {
-    pieData.push({ name: `${d.region} (High)`, value: d.high, color: '#ef4444' })
-    pieData.push({ name: `${d.region} (Med)`, value: d.medium, color: '#f59e0b' })
-    pieData.push({ name: `${d.region} (Low)`, value: d.low, color: '#22c55e' })
+    globalHigh += d.high || 0;
+    globalMed += d.medium || 0;
+    globalLow += d.low || 0;
   })
-  pieData = pieData.filter(p => p.value > 0)
+  if (globalHigh > 0) pieData.push({ name: 'High Priority', value: globalHigh, color: '#ef4444' })
+  if (globalMed > 0) pieData.push({ name: 'Medium Priority', value: globalMed, color: '#f59e0b' })
+  if (globalLow > 0) pieData.push({ name: 'Low Priority', value: globalLow, color: '#22c55e' })
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in duration-500 pb-12 h-[calc(100vh-8rem)] overflow-y-auto">
@@ -205,7 +208,7 @@ export default function Beneficiaries() {
                 </tr>
               </thead>
               <tbody className="text-sm">
-                {filteredBeneficiaries.length > 0 ? filteredBeneficiaries.map((item, i) => (
+                {filteredBeneficiaries.length > 0 ? filteredBeneficiaries.map((item) => (
                   <tr key={item.beneficiary_id} onClick={() => setSelected(item)} className="bg-white/50 hover:bg-white shadow-sm hover:shadow-md cursor-pointer transition-all duration-200 group rounded-xl">
                     <td className="px-6 py-4 font-bold text-slate-800 rounded-tl-xl rounded-bl-xl border-y border-l border-white/60">
                       <div className="flex items-center gap-2">
@@ -422,10 +425,12 @@ export default function Beneficiaries() {
                 <option value="general">General</option><option value="medical">Medical</option><option value="education">Education</option><option value="food">Food Security</option>
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Monthly Income (₹)</label>
-              <input type="number" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500" value={formData.monthly_income} onChange={e => setFormData({...formData, monthly_income: parseFloat(e.target.value)})} />
-            </div>
+            {!isOrg && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Monthly Income (₹)</label>
+                <input type="number" className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500" value={formData.monthly_income} onChange={e => setFormData({...formData, monthly_income: parseFloat(e.target.value)})} />
+              </div>
+            )}
           </div>
 
           <div>

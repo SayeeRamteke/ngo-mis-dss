@@ -19,7 +19,10 @@ def get_anomalies(db: Session = Depends(get_db)):
 class SimulationParams(BaseModel):
     regionId: int
     demandMultiplier: float = 1.0
-    budgetCutPercent: float = 0.0
+    budgetChangePercent: float = 0.0
+    procurementEfficiency: float = 0.8
+    supplyDelayDays: int = 3
+    activeVolunteers: int = None
 
 @router.post("/simulate")
 def run_simulation(params: SimulationParams, db: Session = Depends(get_db)):
@@ -27,7 +30,10 @@ def run_simulation(params: SimulationParams, db: Session = Depends(get_db)):
         db, 
         params.regionId, 
         params.demandMultiplier, 
-        params.budgetCutPercent
+        params.budgetChangePercent,
+        params.procurementEfficiency,
+        params.supplyDelayDays,
+        params.activeVolunteers
     )
 
 @router.get("/redistribute")

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { IndianRupee, TrendingUp, PieChart, ArrowUpRight, ArrowDownRight, Plus } from 'lucide-react'
+import { IndianRupee, PieChart, ArrowUpRight, ArrowDownRight, Plus } from 'lucide-react'
 import axios from 'axios'
 import Modal from '../components/Modal'
 

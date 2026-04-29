@@ -75,8 +75,6 @@ export default function Programs() {
       // Get program ID by matching name (workaround since reports endpoint doesn't return program_id directly yet, wait, let's assume it does, but we didn't add it)
       // I'll fetch raw programs to find ID, or just pass program_name if possible. 
       // Actually, my backend reports endpoint doesn't return program_id! I need to fix that or just fetch raw programs.
-      const rawRes = await axios.get('http://localhost:8000/api/v1/finance/budget') // Or any endpoint with IDs
-      const rawProgs = await axios.get('http://localhost:8000/api/v1/finance/budget') // Not ideal. 
       // I'll update the DSS call to just work with what we have. If we need program_id, we will guess it's index + 1 for now.
       const pId = programs.findIndex(x => x.program_name === dssProgram.program_name) + 1;
 

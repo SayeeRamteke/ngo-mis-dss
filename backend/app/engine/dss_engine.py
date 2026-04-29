@@ -272,39 +272,123 @@ def detect_beneficiary_anomalies(db: Session):
                 
     return anomalies
 
-def what_if_simulation(db: Session, region_id: int, demand_multiplier: float = 1.0, budget_cut_percent: float = 0.0):
-    stocks = db.query(models.ResourceInventory).filter(
-        models.ResourceInventory.region_id == region_id
-    ).all()
+def what_if_simulation(db: Session, region_id: int, demand_multiplier: float = 1.0, budget_change_percent: float = 0.0,
+                       procurement_efficiency: float = 0.8, supply_delay_days: int = 3, active_volunteers: int = None):
+    # 1. Baseline Values
+    beneficiaries = 450
+    per_capita = 1.5
+    base_daily_demand = beneficiaries * per_capita   # ~675
 
-    resource_impact = []
-    for s in stocks:
-        resource = db.query(models.Resource).filter(models.Resource.resource_id == s.resource_id).first()
-        simulated_demand = s.quantity_available * demand_multiplier
-        shortage = max(0, simulated_demand - s.quantity_available)
-        resource_impact.append({
-            "resource": resource.resource_name if resource else str(s.resource_id),
-            "current_stock": s.quantity_available,
-            "simulated_demand": round(simulated_demand, 2),
-            "projected_shortage": round(shortage, 2)
+    cost_per_unit = 10.0
+    daily_budget_base = 7000.0
+    
+    # 2. Apply User Inputs
+    adjusted_demand = base_daily_demand * demand_multiplier
+    initial_stock = adjusted_demand * 12
+    adjusted_daily_budget = daily_budget_base * (1 + (budget_change_percent / 100.0))
+    
+    print("--- DSS SIMULATION LOG ---")
+    print("Demand:", adjusted_demand)
+    print("Max Procurement:", (procurement_efficiency * adjusted_daily_budget) / cost_per_unit)
+    
+    # 3. Setup Loop Variables
+    stock = initial_stock
+    shortage_days = 0
+    timeline_data = []
+    delivery_queue = []
+    
+    previous_shortage = 0
+    
+    # 4. 30-Day Simulation Loop
+    for day in range(1, 31):
+        
+        # Need-based procurement
+        required_daily_procurement = adjusted_demand
+        gap = required_daily_procurement - (stock / 10)
+        procurement_budget = adjusted_daily_budget * (1 + max(0, gap / adjusted_demand))
+            
+        daily_procurement = (procurement_efficiency * procurement_budget) / cost_per_unit
+        
+        # Queue delivery
+        delivery_day = day + supply_delay_days
+        delivery_queue.append({
+            "day": delivery_day,
+            "quantity": daily_procurement
         })
 
-    programs = db.query(models.Program).filter(
-        models.Program.region_id == region_id
-    ).all()
+        # A. Receive supply
+        for delivery in delivery_queue:
+            if delivery["day"] == day:
+                stock += delivery["quantity"]
 
-    budget_impact = []
-    for p in programs:
-        cut = p.total_budget * (budget_cut_percent / 100)
-        after_cut = p.total_budget - cut
-        budget_impact.append({
-            "program": p.program_name,
-            "original": p.total_budget,
-            "after_cut": round(after_cut, 2),
-            "deficit": "Yes" if p.budget_spent > after_cut else "No"
+        # B. Dynamic demand
+        demand = adjusted_demand + (previous_shortage * 0.1)
+
+        # C. Volunteer effect
+        volunteer_factor = 1.0
+        if active_volunteers is not None:
+            if active_volunteers < 30:
+                volunteer_factor = 0.85
+            elif active_volunteers > 70:
+                volunteer_factor = 1.1
+
+        # D. Consumption
+        consumed = min(stock, demand)
+        effective_consumption = consumed * volunteer_factor
+        shortage = demand - consumed
+
+        stock -= effective_consumption
+        previous_shortage = shortage
+
+        if shortage > 0:
+            shortage_days += 1
+
+        timeline_data.append({
+            "day": day,
+            "stock": round(stock, 2),
+            "demand": round(demand, 2),
+            "shortage": round(shortage, 2)
         })
 
-    return {"resourceSimulation": resource_impact, "budgetImpact": budget_impact}
+    # 5. System Status Logic
+    system_status = "Healthy"
+    shortage_trend = "Stable"
+    root_cause = None
+    recommendation = None
+    
+    if shortage_days == 0:
+        system_status = "Healthy"
+        shortage_trend = "Stable"
+        root_cause = None
+    elif shortage_days <= 8:
+        system_status = "Strained"
+        shortage_trend = "Increasing"
+        root_cause = "Demand approaching supply limits"
+        recommendation = "Monitor inventory levels closely and consider a small budget bump."
+    else:
+        system_status = "Struggling"
+        shortage_trend = "Critical"
+        
+        if procurement_efficiency < 0.5:
+            root_cause = "Poor procurement efficiency"
+            recommendation = "Improve supply chain conversion efficiency before adding budget."
+        elif supply_delay_days > 7:
+            root_cause = "High supply delay"
+            recommendation = "Fix logistics bottleneck. Goods are taking too long to arrive."
+        elif budget_change_percent < 0:
+            root_cause = "Budget reduction"
+            recommendation = "Restore funding to baseline."
+        else:
+            root_cause = "Demand exceeding supply capacity"
+            recommendation = "Seek external emergency aid. Current system cannot sustain this demand multiplier."
+
+    return {
+        "shortageTrend": shortage_trend,
+        "programStatus": system_status,
+        "rootCause": root_cause,
+        "recommendation": recommendation,
+        "timelineData": timeline_data
+    }
 
 def redistribution_recommendations(db: Session):
     stocks = db.query(models.ResourceInventory).all()

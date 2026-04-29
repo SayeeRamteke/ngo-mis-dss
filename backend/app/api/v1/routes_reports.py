@@ -18,12 +18,130 @@ def get_resources_report(region_id: Optional[int] = None, db: Session = Depends(
         resource = db.query(models.Resource).filter(models.Resource.resource_id == s.resource_id).first()
         region = db.query(models.Region).filter(models.Region.region_id == s.region_id).first()
         report.append({
+            "inventory_id": s.inventory_id,
+            "resource_id": s.resource_id,
+            "region_id": s.region_id,
             "resource": resource.resource_name if resource else str(s.resource_id),
             "region": region.region_name if region else str(s.region_id),
             "quantity_available": s.quantity_available,
             "quantity_committed": s.quantity_committed
         })
     return report
+
+@router.get("/resource-insights")
+def get_resource_insights(db: Session = Depends(get_db)):
+    from datetime import datetime, timezone, timedelta
+    today = datetime.now(timezone.utc).date()
+    
+    stocks = db.query(models.ResourceInventory).all()
+    
+    kpis = {"total_types": 0, "low_stock": 0, "expiring_soon": 0, "surplus": 0}
+    alerts = []
+    
+    # Pre-fetch resources and regions to minimize queries
+    resources = {r.resource_id: r for r in db.query(models.Resource).all()}
+    regions = {r.region_id: r for r in db.query(models.Region).all()}
+    
+    kpis["total_types"] = len(resources)
+    
+    shortages = []
+    surpluses = []
+    
+    for s in stocks:
+        res = resources.get(s.resource_id)
+        if not res: continue
+        
+        reg_name = regions[s.region_id].region_name if s.region_id in regions else f"Region {s.region_id}"
+        
+        # Check Shortage
+        if s.quantity_available < res.minimum_threshold:
+            kpis["low_stock"] += 1
+            alerts.append({
+                "type": "shortage",
+                "message": f"Shortage Alert: {res.resource_name} is below threshold in {reg_name} ({s.quantity_available} left)",
+                "resource_id": res.resource_id,
+                "region_id": s.region_id,
+                "deficit": res.minimum_threshold - s.quantity_available
+            })
+            shortages.append({"inventory": s, "resource": res, "deficit": res.minimum_threshold - s.quantity_available})
+            
+        # Check Surplus
+        if res.maximum_threshold > 0 and s.quantity_available > res.maximum_threshold:
+            kpis["surplus"] += 1
+            alerts.append({
+                "type": "surplus",
+                "message": f"Surplus Alert: {reg_name} has excess {res.resource_name} ({s.quantity_available} available)",
+                "resource_id": res.resource_id,
+                "region_id": s.region_id,
+                "excess": s.quantity_available - res.maximum_threshold
+            })
+            surpluses.append({"inventory": s, "resource": res, "excess": s.quantity_available - res.maximum_threshold})
+            
+        # Check Expiry
+        if s.expiry_date:
+            days_left = (s.expiry_date - today).days
+            if 0 <= days_left <= 14:
+                kpis["expiring_soon"] += 1
+                alerts.append({
+                    "type": "expiry",
+                    "message": f"{res.resource_name} in {reg_name} expires in {days_left} days",
+                    "inventory_id": s.inventory_id,
+                    "days_left": days_left,
+                    "quantity": s.quantity_available
+                })
+                
+    # Match Transfers
+    transfers = []
+    for short in shortages:
+        # Find matching surplus
+        match = next((sur for sur in surpluses if sur["resource"].resource_id == short["resource"].resource_id and sur["excess"] > 0), None)
+        if match:
+            transfer_qty = min(short["deficit"], match["excess"])
+            if transfer_qty > 0:
+                # Calculate costs (dummy logic for DSS comparison)
+                distance_factor = abs(match["inventory"].region_id - short["inventory"].region_id)
+                transport_cost_per_unit = distance_factor * 15 # e.g. 15 rupees per unit per distance unit
+                buying_cost_per_unit = 50 # Base buying cost
+
+                if transport_cost_per_unit < buying_cost_per_unit:
+                    transfers.append({
+                        "type": "transfer",
+                        "message": f"Region {short['inventory'].region_id} requires {short['deficit']} {short['resource'].unit_of_measure}. Suggested Transfer: {transfer_qty} from Region {match['inventory'].region_id} (Leaves safe surplus in Region {match['inventory'].region_id})",
+                        "resource_id": short["resource"].resource_id,
+                        "from_region_id": match["inventory"].region_id,
+                        "to_region_id": short["inventory"].region_id,
+                        "quantity": transfer_qty
+                    })
+                else:
+                    transfers.append({
+                        "type": "buy",
+                        "message": f"Region {short['inventory'].region_id} requires {transfer_qty} {short['resource'].unit_of_measure}. Suggested Buy/Restock (Transfer from Region {match['inventory'].region_id} too expensive)",
+                        "resource_id": short["resource"].resource_id,
+                        "region_id": short["inventory"].region_id,
+                        "quantity": transfer_qty
+                    })
+
+                # Adjust for subsequent matching
+                match["excess"] -= transfer_qty
+                short["deficit"] -= transfer_qty
+        
+        # If still deficit, must buy
+        if short["deficit"] > 0:
+            transfers.append({
+                "type": "buy",
+                "message": f"Region {short['inventory'].region_id} requires {short['deficit']} {short['resource'].unit_of_measure}. Suggested Buy/Restock (No surplus available to transfer)",
+                "resource_id": short["resource"].resource_id,
+                "region_id": short["inventory"].region_id,
+                "quantity": short["deficit"]
+            })
+
+    # Combine actionable DSS
+    dss_cards = alerts + transfers
+
+    return {
+        "kpis": kpis,
+        "dss_cards": dss_cards
+    }
 
 @router.get("/programs")
 def get_programs_report(db: Session = Depends(get_db)):

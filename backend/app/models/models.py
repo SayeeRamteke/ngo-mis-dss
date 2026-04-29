@@ -155,6 +155,7 @@ class Resource(Base):
     unit_of_measure = Column(String)
     unit_cost = Column(Float, default=0.0)
     minimum_threshold = Column(Float, default=0.0)
+    maximum_threshold = Column(Float, default=0.0)
     description = Column(Text, nullable=True)
 
 class ResourceInventory(Base):

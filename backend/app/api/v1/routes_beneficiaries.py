@@ -134,6 +134,18 @@ def record_aid(beneficiary_id: int, aid: schemas.BeneficiaryAidCreate, db: Sessi
 
     # Atomic Transaction
     try:
+        # Check and Deduct Inventory
+        region_id = db_beneficiary.location_id or 1
+        inventory = db.query(models.ResourceInventory).filter(
+            models.ResourceInventory.resource_id == aid.resource_id,
+            models.ResourceInventory.region_id == region_id
+        ).first()
+
+        if not inventory or inventory.quantity_available < aid.quantity_received:
+            raise HTTPException(status_code=400, detail=f"Insufficient stock for resource in Region {region_id}. Available: {inventory.quantity_available if inventory else 0}")
+        
+        inventory.quantity_available -= aid.quantity_received
+        
         db_aid = models.BeneficiaryAid(
             beneficiary_id=beneficiary_id,
             program_id=final_program_id,
@@ -143,6 +155,18 @@ def record_aid(beneficiary_id: int, aid: schemas.BeneficiaryAidCreate, db: Sessi
         )
         db.add(db_aid)
         
+        # Log Transaction
+        db_transaction = models.ResourceTransaction(
+            resource_id=aid.resource_id,
+            from_region_id=region_id,
+            quantity=aid.quantity_received,
+            transaction_type="outflow",
+            program_id=final_program_id,
+            date=date_received,
+            notes=f"Aid to beneficiary {beneficiary_id}"
+        )
+        db.add(db_transaction)
+        
         # Update Beneficiary's last aid date
         db_beneficiary.last_aid_date = date_received
         
@@ -151,6 +175,9 @@ def record_aid(beneficiary_id: int, aid: schemas.BeneficiaryAidCreate, db: Sessi
         
         db.commit()
         db.refresh(db_aid)
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to record aid: {str(e)}")
