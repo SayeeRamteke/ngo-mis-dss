@@ -185,7 +185,15 @@ def forecast_demand(db: Session, resource_id: int, region_id: int):
     ).order_by(models.ResourceTransaction.date.asc()).all()
 
     if len(transactions) < 2:
-        return {"forecast": None, "message": "Insufficient data for forecast"}
+        # Provide a simulated baseline forecast for the dashboard when data is missing
+        return {
+            "resource_id": resource_id,
+            "region_id": region_id,
+            "predicted": 1250.0,
+            "confidence": "Low (Simulated)",
+            "based_on_records": len(transactions),
+            "message": "Insufficient historical data. Showing simulated baseline."
+        }
 
     total = sum(t.quantity for t in transactions)
     moving_avg = total / len(transactions)

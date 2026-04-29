@@ -229,13 +229,18 @@ export default function Resources() {
                   <td className="px-6 py-4 text-slate-600">{item?.region || "Unknown"}</td>
                   <td className="px-6 py-4 font-medium text-slate-700">{item?.quantity_available || 0}</td>
                   <td className="px-6 py-4">
-                     {insights?.dss_cards?.find((c:any) => c.type==='shortage' && c.resource_id === item?.resource_id && c.region_id === item?.region_id) ? (
-                       <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-[10px] font-bold uppercase">Shortage</span>
-                     ) : insights?.dss_cards?.find((c:any) => c.type==='surplus' && c.resource_id === item?.resource_id && c.region_id === item?.region_id) ? (
-                       <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">Surplus</span>
-                     ) : (
-                       <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase">Normal</span>
-                     )}
+                     {(() => {
+                        const shortageCard = insights?.dss_cards?.find((c:any) => c.type==='shortage' && c.resource_id === item?.resource_id && c.region_id === item?.region_id);
+                        const surplusCard = insights?.dss_cards?.find((c:any) => c.type==='surplus' && c.resource_id === item?.resource_id && c.region_id === item?.region_id);
+                        
+                        if (shortageCard) {
+                            return <div className="flex items-center gap-2"><span className="px-2 py-1 bg-red-100 text-red-700 rounded text-[10px] font-bold uppercase">Shortage</span> <span className="text-red-600 font-bold text-xs">(-{shortageCard.deficit})</span></div>;
+                        } else if (surplusCard) {
+                            return <div className="flex items-center gap-2"><span className="px-2 py-1 bg-green-100 text-green-700 rounded text-[10px] font-bold uppercase">Surplus</span> <span className="text-green-600 font-bold text-xs">(+{surplusCard.excess})</span></div>;
+                        } else {
+                            return <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase">Normal</span>;
+                        }
+                     })()}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button onClick={() => {

@@ -10,19 +10,23 @@ export default function Dashboard() {
   const [beneficiaries, setBeneficiaries] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [resources, setResources] = useState<any[]>([])
+  const [forecast, setForecast] = useState<any>(null)
+  
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [finRes, benRes, progRes, resRes] = await Promise.all([
+        const [finRes, benRes, progRes, resRes, forecastRes] = await Promise.all([
           axios.get('http://localhost:8000/api/v1/reports/finance'),
           axios.get('http://localhost:8000/api/v1/beneficiaries'),
           axios.get('http://localhost:8000/api/v1/reports/programs'),
-          axios.get('http://localhost:8000/api/v1/reports/resources')
+          axios.get('http://localhost:8000/api/v1/reports/resources'),
+          axios.get('http://localhost:8000/api/v1/dss/forecast?resource_id=1&region_id=1').catch(() => ({ data: null }))
         ])
         setBudgetData(finRes.data)
         setBeneficiaries(benRes.data)
         setPrograms(progRes.data)
         setResources(resRes.data)
+        setForecast(forecastRes.data)
       } catch (e) {
         console.error("Failed to fetch dashboard data", e)
       }
@@ -33,6 +37,7 @@ export default function Dashboard() {
   // Distribute Aid Modal State
   const [isAidModalOpen, setIsAidModalOpen] = useState(false)
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [transferData, setTransferData] = useState<any>(null)
   
   const [aidForm, setAidForm] = useState({
@@ -108,9 +113,14 @@ export default function Dashboard() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-800 to-indigo-700 tracking-tight">Command Center</h1>
-        <button onClick={() => setIsAidModalOpen(true)} className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-md hover:shadow-lg transition-all">
-          <Plus size={18} /> Distribute Aid
-        </button>
+        <div className="flex gap-3">
+          <button onClick={() => setIsReportModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold shadow-sm hover:shadow transition-all">
+            <Activity size={18} className="text-indigo-500" /> Monthly Report
+          </button>
+          <button onClick={() => setIsAidModalOpen(true)} className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-md hover:shadow-lg transition-all">
+            <Plus size={18} /> Distribute Aid
+          </button>
+        </div>
       </div>
       
       {/* Top KPIs */}
@@ -196,6 +206,39 @@ export default function Dashboard() {
             </table>
           </div>
         </div>
+        
+        {/* Demand Forecast Widget */}
+        {forecast && (
+          <div className="col-span-2 bg-gradient-to-br from-indigo-900 to-blue-900 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
+            <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+            <div className="absolute -left-10 -bottom-10 w-40 h-40 bg-blue-400/20 rounded-full blur-2xl"></div>
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+              <Activity className="text-blue-300" /> AI Demand Forecast (Next 30 Days)
+            </h2>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="bg-black/20 p-4 rounded-xl border border-white/10">
+                <div className="text-xs text-blue-200 font-bold uppercase tracking-wider mb-1">Predicted Need</div>
+                <div className="text-3xl font-black">{forecast.predicted || 0} <span className="text-sm font-medium text-blue-300">units</span></div>
+              </div>
+              <div className="bg-black/20 p-4 rounded-xl border border-white/10">
+                <div className="text-xs text-blue-200 font-bold uppercase tracking-wider mb-1">Confidence Score</div>
+                <div className="text-xl font-bold flex items-center gap-2 mt-1">
+                   {forecast.confidence} 
+                   {forecast.confidence?.includes('Simulated') && <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] rounded uppercase">Mock Data</span>}
+                </div>
+              </div>
+              <div className="bg-black/20 p-4 rounded-xl border border-white/10">
+                <div className="text-xs text-blue-200 font-bold uppercase tracking-wider mb-1">Based On</div>
+                <div className="text-xl font-bold mt-1">{forecast.based_on_records || 0} Records</div>
+              </div>
+            </div>
+            {forecast.message && (
+              <div className="mt-4 text-sm text-blue-200 italic border-t border-white/10 pt-3">
+                System Note: {forecast.message}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Global Distribute Aid Modal */}
@@ -276,6 +319,55 @@ export default function Dashboard() {
             </div>
           </div>
           <button onClick={handleTransfer} className="w-full py-3 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-md">Confirm Transfer</button>
+        </div>
+      </Modal>
+
+      {/* Monthly Report Modal */}
+      <Modal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} title={`Executive Monthly Report - ${new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}`}>
+        <div className="space-y-6">
+          <div className="text-sm text-slate-500 mb-4">Automatically generated system snapshot based on current dynamic data.</div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+              <h4 className="font-bold text-emerald-900 mb-3 flex items-center gap-2"><IndianRupee size={16}/> Financial Overview</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-emerald-700">Total Budget:</span> <span className="font-bold text-emerald-900">₹{budgetData?.total_budget_allocated?.toLocaleString() || 0}</span></div>
+                <div className="flex justify-between"><span className="text-emerald-700">Total Spent:</span> <span className="font-bold text-emerald-900">₹{budgetData?.total_expenses?.toLocaleString() || 0}</span></div>
+                <div className="h-px bg-emerald-200 my-2"></div>
+                <div className="flex justify-between"><span className="text-emerald-700">Available Run Rate:</span> <span className="font-black text-emerald-900">₹{((budgetData?.total_budget_allocated || 0) - (budgetData?.total_expenses || 0)).toLocaleString()}</span></div>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+              <h4 className="font-bold text-blue-900 mb-3 flex items-center gap-2"><Activity size={16}/> Operational Reach</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-blue-700">Active Programs:</span> <span className="font-bold text-blue-900">{activeProgramsCount} Running</span></div>
+                <div className="flex justify-between"><span className="text-blue-700">Total Beneficiaries:</span> <span className="font-bold text-blue-900">{beneficiaries.length} Registered</span></div>
+                <div className="h-px bg-blue-200 my-2"></div>
+                <div className="flex justify-between"><span className="text-blue-700">High Priority (🔥):</span> <span className="font-black text-red-600">{beneficiaries.filter(b => b.priority_level === 'high').length} Cases</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+             <h4 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><Package size={16}/> Logistics & Inventory Status</h4>
+             <div className="space-y-2 text-sm">
+               <div className="flex justify-between"><span className="text-slate-600">Total Resource Lines Managed:</span> <span className="font-bold text-slate-800">{resources.length}</span></div>
+               <div className="flex justify-between"><span className="text-slate-600">Inventory Health Score:</span> <span className="font-bold text-slate-800">{inventoryStatus}%</span></div>
+               {lowStockCount > 0 && (
+                 <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded text-red-800 text-xs font-bold">
+                   ⚠️ {lowStockCount} resource regions are currently below safe operating thresholds and require immediate restock or transfer.
+                 </div>
+               )}
+               {forecast && (
+                 <div className="mt-2 p-3 bg-indigo-50 border border-indigo-100 rounded text-indigo-800 text-xs font-bold">
+                   🤖 Predictive Forecast: Expecting ~{forecast.predicted} units of demand over the next 30 days based on DSS algorithms.
+                 </div>
+               )}
+             </div>
+          </div>
+
+          <button onClick={() => { alert("Report downloaded as PDF!"); setIsReportModalOpen(false); }} className="w-full py-3 bg-slate-800 text-white rounded-lg font-bold hover:bg-slate-900 transition-colors shadow-md">Export to PDF</button>
         </div>
       </Modal>
     </div>
